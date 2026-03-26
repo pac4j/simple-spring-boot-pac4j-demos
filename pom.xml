@@ -25,7 +25,7 @@
         </dependency>
         <dependency>
             <groupId>org.pac4j</groupId>
-            <artifactId>pac4j-cas</artifactId>
+            <artifactId>pac4j-oidc</artifactId>
             <version>6.3.3</version>
         </dependency>
     </dependencies>
