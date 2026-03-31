@@ -13,20 +13,22 @@
     </parent>
 
     <dependencies>
+        <!-- Spring Boot web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
-
+        <!-- pac4j implementation for Spring MVC so for Spring Boot as well -->
         <dependency>
             <groupId>org.pac4j</groupId>
             <artifactId>spring-webmvc-pac4j</artifactId>
             <version>8.0.2</version>
         </dependency>
+        <!-- pac4j support for SAML2 -->
         <dependency>
             <groupId>org.pac4j</groupId>
             <artifactId>pac4j-saml</artifactId>
-            <version>6.3.3</version>
+            <version>6.4.0</version>
         </dependency>
     </dependencies>
     <build>

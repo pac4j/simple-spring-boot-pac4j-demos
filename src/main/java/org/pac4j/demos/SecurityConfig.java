@@ -1,18 +1,13 @@
 package org.pac4j.demos;
 
 import org.pac4j.core.config.Config;
-import org.pac4j.core.exception.TechnicalException;
 import org.pac4j.saml.client.SAML2Client;
 import org.pac4j.saml.config.SAML2Configuration;
 import org.pac4j.springframework.config.Pac4jSecurityConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
-
-import java.net.MalformedURLException;
 
 @Configuration
 public class SecurityConfig extends Pac4jSecurityConfig {
@@ -22,23 +17,20 @@ public class SecurityConfig extends Pac4jSecurityConfig {
 
     @Bean
     public Config config() {
-        try {
-            final var cfg = new SAML2Configuration(
-                    new ClassPathResource("samlKeystore.jks"),
-                    "pac4j-demo-passwd",
-                    "pac4j-demo-passwd",
-                    new UrlResource("https://casserverpac4j.herokuapp.com/idp/metadata"));
-            cfg.setMaximumAuthenticationLifetime(3600);
-            cfg.setServiceProviderEntityId(baseUri + "/callback?client_name=SAML2Client");
-            cfg.setServiceProviderMetadataPath("file:metadata/sp-metadata-8080.xml");
-            return new Config(baseUri + "/callback", new SAML2Client(cfg));
-        } catch (final MalformedURLException e) {
-            throw new TechnicalException(e);
-        }
+        // configuration of the authentication via the SAML2 protocol
+        final var cfg = new SAML2Configuration();
+        cfg.getKeystore().setKeystorePath("classpath:samlKeystore.jks");
+        cfg.getKeystore().setKeystorePassword("pac4j-demo-passwd");
+        cfg.getKeystore().setPrivateKeyPassword("pac4j-demo-passwd");
+        cfg.setIdentityProviderMetadataPath("https://casserverpac4j.herokuapp.com/idp/metadata");
+        cfg.setServiceProviderEntityId(baseUri + "/callback?client_name=SAML2Client");
+        cfg.setServiceProviderMetadataPath("file:metadata/sp-metadata-8080.xml");
+        return new Config(baseUri + "/callback", new SAML2Client(cfg));
     }
 
     @Override
     public void addInterceptors(final InterceptorRegistry registry) {
+        // the /protected/** URLs require the SAML2 authentication
         addSecurity(registry, "SAML2Client").addPathPatterns("/protected/**");
     }
 }
