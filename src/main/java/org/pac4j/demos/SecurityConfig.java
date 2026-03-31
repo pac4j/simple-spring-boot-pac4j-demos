@@ -17,6 +17,7 @@ public class SecurityConfig extends Pac4jSecurityConfig {
 
     @Bean
     public Config config() {
+        // configuration of the authentication via the OpenID Connect protocol
         final var config = new OidcConfiguration();
         config.setDiscoveryURI("https://casserverpac4j.herokuapp.com/oidc/.well-known/openid-configuration");
         config.setClientId("myclient");
@@ -27,6 +28,7 @@ public class SecurityConfig extends Pac4jSecurityConfig {
 
     @Override
     public void addInterceptors(final InterceptorRegistry registry) {
+        // the /protected/** URLs require the OIDC authentication
         addSecurity(registry, "OidcClient").addPathPatterns("/protected/**");
     }
 }
