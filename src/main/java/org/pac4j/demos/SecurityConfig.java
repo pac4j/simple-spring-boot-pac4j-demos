@@ -1,8 +1,6 @@
 package org.pac4j.demos;
 
 import org.pac4j.cas.client.CasClient;
-import org.pac4j.cas.config.CasConfiguration;
-import org.pac4j.core.client.Clients;
 import org.pac4j.core.config.Config;
 import org.pac4j.springframework.config.Pac4jSecurityConfig;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,11 +19,13 @@ public class SecurityConfig extends Pac4jSecurityConfig {
 
     @Bean
     public Config config() {
-        return new Config(baseUri + "/callback", new CasClient(new CasConfiguration(casLoginUrl)));
+        // configuration of the authentication via the CAS protocol
+        return new Config(baseUri + "/callback", new CasClient(casLoginUrl));
     }
 
     @Override
     public void addInterceptors(final InterceptorRegistry registry) {
+        // the /protected/** URLs require the CAS authentication
         addSecurity(registry, "CasClient").addPathPatterns("/protected/**");
     }
 }
