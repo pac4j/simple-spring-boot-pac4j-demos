@@ -14,7 +14,7 @@ public class SecurityConfig extends Pac4jSecurityConfig {
     @Value("${app.base-url:http://localhost:8080}")
     private String baseUri;
 
-    @Value("${cas.login-url:https://casserverpac4j.herokuapp.com/login}")
+    @Value("${cas.login-url:https://www.casserverpac4j.dev/login}")
     private String casLoginUrl;
 
     @Bean
