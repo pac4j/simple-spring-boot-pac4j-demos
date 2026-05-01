@@ -22,7 +22,7 @@ public class SecurityConfig extends Pac4jSecurityConfig {
         cfg.getKeystore().setKeystorePath("classpath:samlKeystore.jks");
         cfg.getKeystore().setKeystorePassword("pac4j-demo-passwd");
         cfg.getKeystore().setPrivateKeyPassword("pac4j-demo-passwd");
-        cfg.setIdentityProviderMetadataPath("https://casserverpac4j.herokuapp.com/idp/metadata");
+        cfg.setIdentityProviderMetadataPath("https://www.casserverpac4j.dev/idp/metadata");
         cfg.setServiceProviderEntityId(baseUri + "/callback?client_name=SAML2Client");
         cfg.setServiceProviderMetadataPath("file:metadata/sp-metadata-8080.xml");
         return new Config(baseUri + "/callback", new SAML2Client(cfg));
