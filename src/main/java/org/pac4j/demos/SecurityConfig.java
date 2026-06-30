@@ -1,13 +1,19 @@
 package org.pac4j.demos;
 
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.oauth2.sdk.auth.ClientAuthenticationMethod;
 import org.pac4j.core.config.Config;
 import org.pac4j.oidc.client.OidcClient;
 import org.pac4j.oidc.config.OidcConfiguration;
+import org.pac4j.oidc.config.method.PrivateKeyJwtClientAuthnMethodConfig;
+import org.pac4j.oidc.federation.config.OidcTrustAnchorProperties;
 import org.pac4j.springframework.config.Pac4jSecurityConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+
+import java.util.List;
 
 @Configuration
 public class SecurityConfig extends Pac4jSecurityConfig {
@@ -17,12 +23,31 @@ public class SecurityConfig extends Pac4jSecurityConfig {
 
     @Bean
     public Config config() {
-        // configuration of the authentication via the OpenID Connect protocol
-        final var config = new OidcConfiguration()
-            .setDiscoveryURI("https://www.casserverpac4j.dev/oidc/.well-known/openid-configuration")
-            .setClientId("myclient")
-            .setSecret("mysecret")
-            .setAllowUnsignedIdTokens(true);
+        // configuration of the authentication via the OpenID Federation
+        var config = new OidcConfiguration();
+        final var rpJwks = config.getRpJwks();
+        rpJwks.setJwksPath("file:./metadata/rpoidc.jwks");
+        rpJwks.setKid("myrpoidc");
+        config.setClientAuthenticationMethod(ClientAuthenticationMethod.PRIVATE_KEY_JWT);
+        final var privateKeyJwtConfig = new PrivateKeyJwtClientAuthnMethodConfig(rpJwks);
+        config.setPrivateKeyJWTClientAuthnMethodConfig(privateKeyJwtConfig);
+
+        config.setRequestObjectSigningAlgorithm(JWSAlgorithm.RS256);
+
+        var federation = config.getFederation();
+
+        federation.setTargetOp("https://localhost:8444/cas");
+        var trust = new OidcTrustAnchorProperties();
+        trust.setIssuer("https://localhost:8443/cas");
+        trust.setJwksPath("file:./metadata/trustanchor.jwks");
+        federation.getTrustAnchors().add(trust);
+
+        federation.getJwks().setJwksPath("file:./metadata/rpfede.jwks");
+        federation.getJwks().setKid("myrpfede");
+        federation.setContactEmails(List.of("jerome@casinthecloud.com"));
+
+        federation.setEntityId(baseUri);
+
         return new Config(baseUri + "/callback", new OidcClient(config));
     }
 
