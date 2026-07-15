@@ -39,7 +39,6 @@ public class SecurityConfig extends Pac4jSecurityConfig {
         federation.setTargetOp("https://localhost:8444/cas");
         var trust = new OidcTrustAnchorProperties();
         trust.setIssuer("https://localhost:8443/cas");
-        trust.setJwksPath("file:./metadata/trustanchor.jwks");
         federation.getTrustAnchors().add(trust);
 
         federation.getJwks().setJwksPath("file:./metadata/rpfede.jwks");
