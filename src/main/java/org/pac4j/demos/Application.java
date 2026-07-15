@@ -15,7 +15,7 @@ public class Application {
     @RequestMapping("/")
     @ResponseBody
     public String index() {
-        return "<h1>Public area</h1><p><a href='/protected/index'>Protected area</a></p>"
+        return "<h1>Public area</h1><p><a id='protect' href='/protected/index'>Protected area</a></p>"
                 + "<p><a href='/logout'>Logout</a></p>" + profileManager.getProfiles();
     }
 
