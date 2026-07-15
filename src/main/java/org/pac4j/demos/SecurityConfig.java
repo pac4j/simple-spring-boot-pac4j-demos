@@ -13,11 +13,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 
-import javax.net.ssl.*;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
-import java.security.cert.X509Certificate;
 import java.util.List;
 
 @Configuration
@@ -28,41 +23,6 @@ public class SecurityConfig extends Pac4jSecurityConfig {
 
     @Bean
     public Config config() {
-        TrustManager[] trustAllCerts = new TrustManager[] {
-                new X509TrustManager() {
-                    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-                        return null;
-                    }
-                    @Override
-                    public void checkClientTrusted(X509Certificate[] arg0, String arg1)
-                            throws CertificateException {}
-
-                    @Override
-                    public void checkServerTrusted(X509Certificate[] arg0, String arg1)
-                            throws CertificateException {}
-                }
-        };
-
-        SSLContext sc=null;
-        try {
-            sc = SSLContext.getInstance("SSL");
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
-        }
-        try {
-            sc.init(null, trustAllCerts, new java.security.SecureRandom());
-        } catch (KeyManagementException e) {
-            e.printStackTrace();
-        }
-        HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
-        HostnameVerifier validHosts = new HostnameVerifier() {
-            @Override
-            public boolean verify(String arg0, SSLSession arg1) {
-                return true;
-            }
-        };
-        HttpsURLConnection.setDefaultHostnameVerifier(validHosts);
-
         // configuration of the authentication via the OpenID Federation
         var config = new OidcConfiguration();
         final var rpJwks = config.getRpJwks();
