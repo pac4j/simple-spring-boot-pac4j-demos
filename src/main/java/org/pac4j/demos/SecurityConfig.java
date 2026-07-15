@@ -25,6 +25,8 @@ public class SecurityConfig extends Pac4jSecurityConfig {
     public Config config() {
         // configuration of the authentication via the OpenID Federation
         var config = new OidcConfiguration();
+        config.setAllowUnsignedIdTokens(true);
+
         final var rpJwks = config.getRpJwks();
         rpJwks.setJwksPath("file:./metadata/rpoidc.jwks");
         rpJwks.setKid("myrpoidc");
