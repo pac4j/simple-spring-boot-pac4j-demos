@@ -1,5 +1,6 @@
 package org.pac4j.demos;
 
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.oauth2.sdk.auth.ClientAuthenticationMethod;
 import org.pac4j.core.config.Config;
 import org.pac4j.oidc.client.OidcClient;
@@ -33,7 +34,7 @@ public class SecurityConfig extends Pac4jSecurityConfig {
         final var privateKeyJwtConfig = new PrivateKeyJwtClientAuthnMethodConfig(rpJwks);
         config.setPrivateKeyJWTClientAuthnMethodConfig(privateKeyJwtConfig);
 
-        //config.setRequestObjectSigningAlgorithm(JWSAlgorithm.RS256);
+        config.setRequestObjectSigningAlgorithm(JWSAlgorithm.RS256);
 
         var federation = config.getFederation();
 
