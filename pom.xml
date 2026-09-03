@@ -24,11 +24,18 @@
             <artifactId>spring-webmvc-pac4j</artifactId>
             <version>8.0.3</version>
         </dependency>
-        <!-- pac4j support for OpenID Connect -->
+        <!-- pac4j support for OpenID4VP: the application acts as a verifier -->
         <dependency>
             <groupId>org.pac4j</groupId>
-            <artifactId>pac4j-oidc</artifactId>
-            <version>6.5.3</version>
+            <artifactId>pac4j-openid4vp</artifactId>
+            <version>6.6.0-SNAPSHOT</version>
+        </dependency>
+        <!-- the wallet simulator, to play a presentation without a phone and without a certificate -->
+        <dependency>
+            <groupId>org.pac4j</groupId>
+            <artifactId>pac4j-openid4vp</artifactId>
+            <version>6.6.0-SNAPSHOT</version>
+            <type>test-jar</type>
         </dependency>
     </dependencies>
     <build>
