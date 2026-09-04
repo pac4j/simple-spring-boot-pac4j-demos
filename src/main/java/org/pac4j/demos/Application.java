@@ -28,7 +28,23 @@ public class Application {
     @ResponseBody
     public String index() {
         return "<h1>Public area</h1>"
-            + "<p><a href='/vp'>Protected area (wallet, OpenID4VP)</a></p>"
+            + "<p><a href='/vp'>Protected area (wallet by URL, signed request)</a></p>"
+            + "<p><a href='/vp-unsigned'>Protected area (wallet by URL, unsigned request)</a></p>"
+            + "<p><a href='/dcapi'>Protected area (wallet through the digital credentials API)</a></p>"
+            + "<p><a href='/logout'>Logout</a></p>" + profileManager.getProfiles();
+    }
+
+    @RequestMapping("/wallet-unsigned/index")
+    @ResponseBody
+    public String walletUnsigned() {
+        return "<h1>Wallet protected area, unsigned request</h1><a href='/'>Home</a><p/>"
+            + "<p><a href='/logout'>Logout</a></p>" + profileManager.getProfiles();
+    }
+
+    @RequestMapping("/wallet-dcapi/index")
+    @ResponseBody
+    public String walletDcApi() {
+        return "<h1>Wallet protected area, through the digital credentials API</h1><a href='/'>Home</a><p/>"
             + "<p><a href='/logout'>Logout</a></p>" + profileManager.getProfiles();
     }
 
@@ -44,12 +60,28 @@ public class Application {
     @RequestMapping("/vp")
     @ResponseBody
     public String vp() {
+        return vpPage("OpenID4VP presentation, signed request", "/wallet/index", "OpenId4VpClient",
+            "<p>The verifier signs its request: the wallet only receives a pointer and fetches the request object.</p>");
+    }
+
+    /** The same page for a request the verifier cannot sign: the request travels in the wallet URL itself. */
+    @RequestMapping("/vp-unsigned")
+    @ResponseBody
+    public String vpUnsigned() {
+        return vpPage("OpenID4VP presentation, unsigned request", "/wallet-unsigned/index", "OpenId4VpUnsignedClient",
+            "<p>The <code>redirect_uri</code> prefix gives the wallet no key to trust, so the request <b>cannot</b> be "
+            + "signed: its parameters travel in the wallet URL, there is no request object to fetch. Notice how much "
+            + "longer the URL gets, the DCQL query and the client metadata being carried whole.</p>");
+    }
+
+    private String vpPage(final String title, final String protectedPath, final String clientName, final String note) {
         return """
-            <h1>OpenID4VP presentation</h1>
+            <h1>%s</h1>
+            %s
             <p><a href='/'>Home</a></p>
 
             <h2>Same device &mdash; the URL is followed</h2>
-            <p><a href='/wallet/index'>Ask for the protected page</a>
+            <p><a href='%s'>Ask for the protected page</a>
                &mdash; a plain link, no JavaScript at all.</p>
             <p>The application answers a 302 whose <code>Location</code> is the <code>openid4vp://</code> URL,
                and the browser hands it to the operating system. On a phone holding a wallet, the wallet opens
@@ -78,8 +110,8 @@ public class Application {
               const log = m => document.getElementById('log').textContent += m + '\\n';
 
               async function ask() {
-                log('browser -> GET /wallet/index (XHR)');
-                const r = await fetch('/wallet/index', {headers: {'X-Requested-With': 'XMLHttpRequest'}});
+                log('browser -> GET %s (XHR)');
+                const r = await fetch('%s', {headers: {'X-Requested-With': 'XMLHttpRequest'}});
                 walletUrl = r.headers.get('Location');
                 log('browser <- ' + r.status + (walletUrl ? ', Location header received' : ', NO Location header'));
                 document.getElementById('url').textContent = walletUrl || '(no Location header)';
@@ -95,7 +127,71 @@ public class Application {
                 document.getElementById('back').disabled = false;
               }
 
-              function back() { window.location = '/callback?client_name=OpenId4VpClient'; }
+              function back() { window.location = '/callback?client_name=%s'; }
+            </script>
+            """.formatted(title, note, protectedPath, protectedPath, protectedPath, clientName);
+    }
+
+    /** The page driving a presentation through the digital credentials API of the browser. */
+    @RequestMapping("/dcapi")
+    @ResponseBody
+    public String dcapi() {
+        return """
+            <h1>OpenID4VP through the digital credentials API</h1>
+            <p><a href='/'>Home</a></p>
+            <p>The browser mediates the whole exchange: it asks which wallet to use, hands it the request along
+               with the origin it authenticated, and returns the answer to this page. Nothing is posted between
+               the wallet and the application, so the page never leaves and keeps its session.</p>
+            <ol>
+              <li><button onclick='ask()'>1. ask for the protected page</button>
+                  &mdash; a plain call, <b>not</b> marked as AJAX: the answer is a 200 carrying the request
+                  object as JSON, which no <code>Location</code> header could hold</li>
+              <li><pre id='req' style='white-space:pre-wrap;word-break:break-all'>(nothing yet)</pre></li>
+              <li><button id='call' onclick='call()' disabled>2. call navigator.credentials.get()</button>
+                  &mdash; <b>this will fail on this machine</b>: no wallet is registered with the browser. The
+                  failure is the demonstration</li>
+              <li><button id='fake' onclick='fake()' disabled>3. post a made-up answer</button>
+                  &mdash; to see the single leg of this binding reach the verifier, with its session</li>
+            </ol>
+            <pre id='log' style='background:#f4f4f4;padding:1em;white-space:pre-wrap'></pre>
+            <script>
+              let request = null;
+              const log = m => document.getElementById('log').textContent += m + '\\n';
+
+              async function ask() {
+                log('browser -> GET /wallet-dcapi/index');
+                const r = await fetch('/wallet-dcapi/index');
+                const body = await r.json();
+                request = body.request;
+                log('browser <- ' + r.status + ', request object of ' + request.length + ' characters');
+                document.getElementById('req').textContent = request;
+                document.getElementById('call').disabled = false;
+                document.getElementById('fake').disabled = false;
+              }
+
+              async function call() {
+                if (!navigator.credentials || !window.DigitalCredential) {
+                  log('this browser has no digital credentials API');
+                  return;
+                }
+                try {
+                  const credential = await navigator.credentials.get({digital: {requests: [
+                    {protocol: 'openid4vp-v1-signed', data: {request: request}}]}});
+                  log('wallet answered, posting it back');
+                  await post(credential.data.response);
+                } catch (e) {
+                  log('no wallet answered: ' + e);
+                }
+              }
+
+              async function fake() { await post('a-made-up-answer-the-verifier-cannot-decrypt'); }
+
+              async function post(response) {
+                const r = await fetch('/callback?client_name=OpenId4VpDcApiClient', {method: 'POST',
+                  headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                  body: 'response=' + encodeURIComponent(response)});
+                log('browser <- ' + r.status + ' from the callback');
+              }
             </script>
             """;
     }
@@ -110,10 +206,18 @@ public class Application {
         final var simulator = new WalletSimulator();
         final var http = HttpClient.newHttpClient();
 
-        final var requestUri = simulator.readRequestUri(walletUrl);
-        final var served = http.send(HttpRequest.newBuilder(URI.create(requestUri)).GET().build(),
-            HttpResponse.BodyHandlers.ofString());
-        final var request = simulator.readRequestObject(served.body());
+        // a signed request is fetched from its request URI; an unsigned one is the wallet URL itself
+        final String fetched;
+        final org.pac4j.openid4vp.wallet.WalletRequest request;
+        if (simulator.hasRequestUri(walletUrl)) {
+            final var served = http.send(HttpRequest.newBuilder(URI.create(simulator.readRequestUri(walletUrl))).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+            request = simulator.readRequestObject(served.body());
+            fetched = "request object fetched (" + served.statusCode() + ")";
+        } else {
+            request = simulator.readRequestParameters(walletUrl);
+            fetched = "request read from the URL itself, nothing to fetch";
+        }
 
         final var response = simulator.buildResponse(request,
             Map.of("pid", List.of("a-presentation-this-verifier-cannot-validate-yet")));
@@ -123,7 +227,6 @@ public class Application {
                 "response=" + URLEncoder.encode(response, StandardCharsets.UTF_8)))
             .build(), HttpResponse.BodyHandlers.ofString());
 
-        return "wallet simulator: request object fetched (" + served.statusCode()
-            + "), response posted (" + posted.statusCode() + ")";
+        return "wallet simulator: " + fetched + ", response posted (" + posted.statusCode() + ")";
     }
 }
