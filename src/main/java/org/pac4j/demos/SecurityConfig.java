@@ -1,7 +1,7 @@
 package org.pac4j.demos;
 
 import org.pac4j.core.config.Config;
-import org.pac4j.jwt.config.signature.ECSignatureConfiguration;
+import org.pac4j.core.config.properties.JwksProperties;
 import org.pac4j.openid4vp.client.OpenId4VpClient;
 import org.pac4j.openid4vp.config.ClientIdPrefix;
 import org.pac4j.openid4vp.config.OpenId4VpConfiguration;
@@ -12,10 +12,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
-
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.spec.ECGenParameterSpec;
 
 @Configuration
 public class SecurityConfig extends Pac4jSecurityConfig {
@@ -35,21 +31,13 @@ public class SecurityConfig extends Pac4jSecurityConfig {
             .setDcqlQuery("""
                 {"credentials":[{"id":"pid","format":"dc+sd-jwt",
                  "claims":[{"path":["given_name"]},{"path":["family_name"]},{"path":["age_over_18"]}]}]}""")
-            .setRequestObjectSignatureConfiguration(new ECSignatureConfiguration(newEcKeyPair()));
+            // the signing key is read from that JWKS, and created there on the first run: an ES256 key,
+            // as the profile mandates. A real EUDI verifier would point at a keystore instead, so that the
+            // key comes with the relying party access certificate its wallet requires
+            .setJwks(new JwksProperties().setJwksPath("./metadata/openid4vp.jwks"));
         configuration.addCredentialVerifier(new SdJwtVcVerifier());
 
         return new Config(baseUri + "/callback", new OpenId4VpClient(configuration));
-    }
-
-    /** A throwaway key for the demo: a real verifier holds the private key of its access certificate. */
-    private static KeyPair newEcKeyPair() {
-        try {
-            final var generator = KeyPairGenerator.getInstance("EC");
-            generator.initialize(new ECGenParameterSpec("secp256r1"));
-            return generator.generateKeyPair();
-        } catch (final Exception e) {
-            throw new IllegalStateException(e);
-        }
     }
 
     @Override

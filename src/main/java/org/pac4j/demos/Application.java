@@ -40,17 +40,33 @@ public class Application {
     }
 
     /** The page driving a presentation, step by step, so that every exchange can be watched. */
+    /** The page driving a presentation, so that the two ways of handing the URL over can be compared. */
     @RequestMapping("/vp")
     @ResponseBody
     public String vp() {
         return """
             <h1>OpenID4VP presentation</h1>
             <p><a href='/'>Home</a></p>
+
+            <h2>Same device &mdash; the URL is followed</h2>
+            <p><a href='/wallet/index'>Ask for the protected page</a>
+               &mdash; a plain link, no JavaScript at all.</p>
+            <p>The application answers a 302 whose <code>Location</code> is the <code>openid4vp://</code> URL,
+               and the browser hands it to the operating system. On a phone holding a wallet, the wallet opens
+               and the presentation carries on there. <b>On a desktop no application claims that scheme, so the
+               browser refuses it</b> &mdash; that dead end is precisely what this link demonstrates.</p>
+
+            <h2>Cross device &mdash; the same URL is displayed</h2>
+            <p>The wallet is on another device, so nothing can be handed over locally: the URL has to cross the
+               gap by itself, and the page asks for it as data instead of being redirected.</p>
             <ol>
               <li><button onclick='ask()'>1. ask for the protected page</button>
-                  &mdash; an AJAX call, answered 401 with the wallet URL in the Location header</li>
+                  &mdash; the very same request, as an AJAX call. pac4j then answers 401 with the URL in the
+                  <code>Location</code> header, leaving the page free to do what it wants with it</li>
               <li><pre id='url' style='white-space:pre-wrap'>(nothing yet)</pre>
-                  a real wallet would be handed this URL, as a deep link or as a QR code</li>
+                  A real cross device flow renders this URL as a QR code, which the wallet of another device
+                  scans. This demo shows it as text instead, to make the point that it is the very same URL as
+                  the link above &mdash; only handed over differently.</li>
               <li><button id='play' onclick='play()' disabled>2. play the wallet simulator</button>
                   &mdash; it fetches the request object then posts its response, over real HTTP</li>
               <li><button id='back' onclick='back()' disabled>3. come back on the callback</button>
