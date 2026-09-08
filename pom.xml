@@ -28,7 +28,7 @@
         <dependency>
             <groupId>org.pac4j</groupId>
             <artifactId>pac4j-cas</artifactId>
-            <version>6.5.0</version>
+            <version>6.5.8</version>
         </dependency>
     </dependencies>
     <build>
