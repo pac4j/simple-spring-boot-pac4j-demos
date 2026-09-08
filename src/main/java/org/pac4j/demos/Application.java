@@ -61,7 +61,16 @@ public class Application {
     @ResponseBody
     public String vp() {
         return vpPage("OpenID4VP presentation, signed request", "/wallet/index", "OpenId4VpClient",
-            "<p>The verifier signs its request: the wallet only receives a pointer and fetches the request object.</p>");
+            "<p>The verifier signs its request: the wallet only receives a pointer and fetches the request object.</p>",
+            """
+            <h2>Cross device &mdash; the same URL is displayed</h2>
+            <p>The wallet is on another device, so nothing can be handed over locally: the URL has to cross the
+               gap by itself, and the page asks for it as data instead of being redirected.</p>
+            """,
+            """
+                  A real cross device flow renders this URL as a QR code, which the wallet of another device
+                  scans. This demo shows it as text instead, to make the point that it is the very same URL as
+                  the link above &mdash; only handed over differently.""");
     }
 
     /** The same page for a request the verifier cannot sign: the request travels in the wallet URL itself. */
@@ -71,10 +80,22 @@ public class Application {
         return vpPage("OpenID4VP presentation, unsigned request", "/wallet-unsigned/index", "OpenId4VpUnsignedClient",
             "<p>The <code>redirect_uri</code> prefix gives the wallet no key to trust, so the request <b>cannot</b> be "
             + "signed: its parameters travel in the wallet URL, there is no request object to fetch. Notice how much "
-            + "longer the URL gets, the DCQL query and the client metadata being carried whole.</p>");
+            + "longer the URL gets, the DCQL query and the client metadata being carried whole. And look at the "
+            + "<code>client_id</code>: it is the response URI of this very transaction, since with this prefix the "
+            + "identifier <i>is</i> the URI the wallet may answer to. Nothing was configured for it.</p>",
+            """
+            <h2>From the page &mdash; the same URL is fetched</h2>
+            <p><b>No cross device here.</b> An unsigned request must not be shown as a QR code: the wallet cannot
+               authenticate the verifier, so nothing would tell the person scanning it who is asking, and the
+               answer would be posted to whoever displayed the code. The page only fetches the URL to hand it to
+               the simulator.</p>
+            """,
+            """
+                  The very same URL as the link above, only handed over differently.""");
     }
 
-    private String vpPage(final String title, final String protectedPath, final String clientName, final String note) {
+    private String vpPage(final String title, final String protectedPath, final String clientName, final String note,
+                          final String secondWay, final String urlNote) {
         return """
             <h1>%s</h1>
             %s
@@ -88,17 +109,13 @@ public class Application {
                and the presentation carries on there. <b>On a desktop no application claims that scheme, so the
                browser refuses it</b> &mdash; that dead end is precisely what this link demonstrates.</p>
 
-            <h2>Cross device &mdash; the same URL is displayed</h2>
-            <p>The wallet is on another device, so nothing can be handed over locally: the URL has to cross the
-               gap by itself, and the page asks for it as data instead of being redirected.</p>
+            %s
             <ol>
               <li><button onclick='ask()'>1. ask for the protected page</button>
                   &mdash; the very same request, as an AJAX call. pac4j then answers 401 with the URL in the
                   <code>Location</code> header, leaving the page free to do what it wants with it</li>
               <li><pre id='url' style='white-space:pre-wrap'>(nothing yet)</pre>
-                  A real cross device flow renders this URL as a QR code, which the wallet of another device
-                  scans. This demo shows it as text instead, to make the point that it is the very same URL as
-                  the link above &mdash; only handed over differently.</li>
+                  %s</li>
               <li><button id='play' onclick='play()' disabled>2. play the wallet simulator</button>
                   &mdash; it fetches the request object then posts its response, over real HTTP</li>
               <li><button id='back' onclick='back()' disabled>3. come back on the callback</button>
@@ -129,7 +146,7 @@ public class Application {
 
               function back() { window.location = '/callback?client_name=%s'; }
             </script>
-            """.formatted(title, note, protectedPath, protectedPath, protectedPath, clientName);
+            """.formatted(title, note, protectedPath, secondWay, urlNote, protectedPath, protectedPath, clientName);
     }
 
     /** The page driving a presentation through the digital credentials API of the browser. */
