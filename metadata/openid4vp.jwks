@@ -1,0 +1,12 @@
+{
+  "keys" : [ {
+    "kty" : "EC",
+    "d" : "7d22TCapdgavKu3UDgSdKKll6tSn3WHKsEd1tdh5N6M",
+    "use" : "sig",
+    "crv" : "P-256",
+    "kid" : "pac4j-demo-key",
+    "x" : "MViV-TqGkZYDjk9KGhoLOOL7FaoSdYJGsNIqpehzOc0",
+    "y" : "8n_p27iqz4QGfhzZ__E1v5uTJV3JUGYpB-ngDDefVpg",
+    "alg" : "ES256"
+  } ]
+}
