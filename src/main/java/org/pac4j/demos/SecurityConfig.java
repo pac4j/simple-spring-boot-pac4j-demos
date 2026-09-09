@@ -5,6 +5,11 @@ import org.pac4j.core.config.properties.JwksProperties;
 import org.pac4j.openid4vp.client.OpenId4VpClient;
 import org.pac4j.openid4vp.client.OpenId4VpDcApiClient;
 import org.pac4j.openid4vp.config.ClientIdPrefix;
+import org.pac4j.openid4vp.dcql.DcqlQuery;
+import org.pac4j.openid4vp.dcql.EudiPidQuery;
+import static org.pac4j.core.profile.definition.CommonProfileDefinition.FAMILY_NAME;
+import static org.pac4j.openid4vp.profile.EudiPidProfileDefinition.AGE_OVER_18;
+import static org.pac4j.openid4vp.profile.EudiPidProfileDefinition.GIVEN_NAME;
 import org.pac4j.openid4vp.config.OpenId4VpConfiguration;
 import org.pac4j.openid4vp.config.OpenId4VpDcApiConfiguration;
 import org.pac4j.openid4vp.verifier.SdJwtVcVerifier;
@@ -25,9 +30,8 @@ public class SecurityConfig extends Pac4jSecurityConfig {
     /** The identifier under which the DID document of this verifier would expose its key. */
     private static final String KID = "pac4j-demo-key";
 
-    private static final String DCQL_QUERY = """
-        {"credentials":[{"id":"pid","format":"dc+sd-jwt",
-         "claims":[{"path":["given_name"]},{"path":["family_name"]},{"path":["age_over_18"]}]}]}""";
+    /** What this verifier asks for: three attributes of the person identification data, as a SD-JWT VC. */
+    private static final DcqlQuery DCQL_QUERY = EudiPidQuery.sdJwtVc(GIVEN_NAME, FAMILY_NAME, AGE_OVER_18);
 
     @Value("${app.base-url:http://localhost:8080}")
     private String baseUri;
@@ -37,7 +41,7 @@ public class SecurityConfig extends Pac4jSecurityConfig {
         // configuration of the authentication via a wallet, with OpenID4VP: this application is the verifier
         final var configuration = new OpenId4VpConfiguration()
             // a decentralized identifier signs its requests without needing a certificate, which keeps this
-            // demo runnable. A real EUDI verifier uses "x509_san_dns" and its relying party access
+            // demo runnable. A real EUDI verifier uses "x509_hash" and its relying party access
             // certificate; the "redirect_uri" prefix cannot be used here since its requests cannot be signed
             .setClientId(DID)
             .setClientIdPrefix(ClientIdPrefix.DECENTRALIZED_IDENTIFIER)
