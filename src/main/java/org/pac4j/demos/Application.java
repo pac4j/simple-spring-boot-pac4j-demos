@@ -1,5 +1,6 @@
 package org.pac4j.demos;
 
+import java.util.stream.Collectors;
 import org.pac4j.core.profile.ProfileManager;
 import org.pac4j.openid4vp.wallet.WalletSimulator;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,7 +71,11 @@ public class Application {
             """
                   A real cross device flow renders this URL as a QR code, which the wallet of another device
                   scans. This demo shows it as text instead, to make the point that it is the very same URL as
-                  the link above &mdash; only handed over differently.""");
+                  the link above &mdash; only handed over differently.""",
+            """
+                  . <label><input type='checkbox' id='supportsPost' checked> this wallet supports
+                  <code>request_uri_method=post</code></label> &mdash; the verifier only announces it, the
+                  wallet decides: uncheck to see a wallet fall back to a plain GET""");
     }
 
     /** The same page for a request the verifier cannot sign: the request travels in the wallet URL itself. */
@@ -91,11 +96,11 @@ public class Application {
                the simulator.</p>
             """,
             """
-                  The very same URL as the link above, only handed over differently.""");
+                  The very same URL as the link above, only handed over differently.""", "");
     }
 
     private String vpPage(final String title, final String protectedPath, final String clientName, final String note,
-                          final String secondWay, final String urlNote) {
+                          final String secondWay, final String urlNote, final String playNote) {
         return """
             <h1>%s</h1>
             %s
@@ -117,7 +122,7 @@ public class Application {
               <li><pre id='url' style='white-space:pre-wrap'>(nothing yet)</pre>
                   %s</li>
               <li><button id='play' onclick='play()' disabled>2. play the wallet simulator</button>
-                  &mdash; it fetches the request object then posts its response, over real HTTP</li>
+                  &mdash; it fetches the request object then posts its response, over real HTTP%s</li>
               <li><button id='back' onclick='back()' disabled>3. come back on the callback</button>
                   &mdash; the only leg carrying a session</li>
             </ol>
@@ -139,14 +144,15 @@ public class Application {
                 log('browser -> POST /fake-wallet');
                 const r = await fetch('/fake-wallet', {method: 'POST',
                   headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                  body: 'walletUrl=' + encodeURIComponent(walletUrl)});
+                  body: 'walletUrl=' + encodeURIComponent(walletUrl)
+                    + '&supportsPost=' + (document.getElementById('supportsPost')?.checked ?? true)});
                 log('browser <- ' + await r.text());
                 document.getElementById('back').disabled = false;
               }
 
               function back() { window.location = '/callback?client_name=%s'; }
             </script>
-            """.formatted(title, note, protectedPath, secondWay, urlNote, protectedPath, protectedPath, clientName);
+            """.formatted(title, note, protectedPath, secondWay, urlNote, playNote, protectedPath, protectedPath, clientName);
     }
 
     /** The page driving a presentation through the digital credentials API of the browser. */
@@ -219,7 +225,9 @@ public class Application {
      */
     @PostMapping("/fake-wallet")
     @ResponseBody
-    public String fakeWallet(@RequestParam("walletUrl") final String walletUrl) throws Exception {
+    public String fakeWallet(@RequestParam("walletUrl") final String walletUrl,
+                             @RequestParam(value = "supportsPost", defaultValue = "true") final boolean supportsPost)
+        throws Exception {
         final var simulator = new WalletSimulator();
         final var http = HttpClient.newHttpClient();
 
@@ -227,10 +235,25 @@ public class Application {
         final String fetched;
         final org.pac4j.openid4vp.wallet.WalletRequest request;
         if (simulator.hasRequestUri(walletUrl)) {
-            final var served = http.send(HttpRequest.newBuilder(URI.create(simulator.readRequestUri(walletUrl))).GET().build(),
-                HttpResponse.BodyHandlers.ofString());
-            request = simulator.readRequestObject(served.body());
-            fetched = "request object fetched (" + served.statusCode() + ")";
+            final var requestUri = URI.create(simulator.readRequestUri(walletUrl));
+            if (simulator.postsToRequestUri(walletUrl) && supportsPost) {
+                // the verifier lets the wallet say what it supports first: the request object is built for it
+                final var walletNonce = simulator.generateWalletNonce();
+                final var body = simulator.buildRequestUriPostParameters(walletNonce).entrySet().stream()
+                    .map(e -> e.getKey() + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
+                    .collect(Collectors.joining("&"));
+                final var served = http.send(HttpRequest.newBuilder(requestUri)
+                    .header("Content-Type", "application/x-www-form-urlencoded")
+                    .header("Accept", "application/oauth-authz-req+jwt")
+                    .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString());
+                request = simulator.readRequestObject(served.body(), walletNonce);
+                fetched = "capabilities posted, request object received (" + served.statusCode() + ")";
+            } else {
+                // a wallet which does not support the post method ignores the announcement and fetches, as the spec says
+                final var served = http.send(HttpRequest.newBuilder(requestUri).GET().build(), HttpResponse.BodyHandlers.ofString());
+                request = simulator.readRequestObject(served.body());
+                fetched = "request object fetched with a plain GET (" + served.statusCode() + ")";
+            }
         } else {
             request = simulator.readRequestParameters(walletUrl);
             fetched = "request read from the URL itself, nothing to fetch";
