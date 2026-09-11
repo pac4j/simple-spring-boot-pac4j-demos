@@ -259,12 +259,14 @@ public class Application {
             fetched = "request read from the URL itself, nothing to fetch";
         }
 
-        final var response = simulator.buildResponse(request,
+        // encrypted in a "response" parameter, or in clear as a "vp_token" one: whatever the request asked for
+        final var answer = simulator.buildResponseParameters(request,
             Map.of("pid", List.of("a-presentation-this-verifier-cannot-validate-yet")));
         final var posted = http.send(HttpRequest.newBuilder(URI.create(request.getResponseUri()))
             .header("Content-Type", "application/x-www-form-urlencoded")
-            .POST(HttpRequest.BodyPublishers.ofString(
-                "response=" + URLEncoder.encode(response, StandardCharsets.UTF_8)))
+            .POST(HttpRequest.BodyPublishers.ofString(answer.entrySet().stream()
+                .map(e -> e.getKey() + "=" + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
+                .collect(Collectors.joining("&"))))
             .build(), HttpResponse.BodyHandlers.ofString());
 
         return "wallet simulator: " + fetched + ", response posted (" + posted.statusCode() + ")";
