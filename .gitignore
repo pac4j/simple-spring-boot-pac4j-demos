@@ -8,3 +8,8 @@ bin/
 .idea
 sp-metadata.xml
 .DS_Store
+
+# Local OpenID4VP test certificate and private key
+/metadata/verifier.key.pem
+/metadata/verifier.crt.pem
+/metadata/verifier.p12

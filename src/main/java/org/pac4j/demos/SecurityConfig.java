@@ -1,25 +1,28 @@
 package org.pac4j.demos;
 
 import org.pac4j.core.config.Config;
-import org.pac4j.core.config.properties.JwksProperties;
+import org.pac4j.core.config.properties.KeystoreProperties;
+import org.pac4j.core.exception.TechnicalException;
 import org.pac4j.openid4vp.client.OpenId4VpClient;
-import org.pac4j.openid4vp.client.OpenId4VpDcApiClient;
 import org.pac4j.openid4vp.config.ClientIdPrefix;
+import org.pac4j.openid4vp.config.CredentialFormat;
+import org.pac4j.openid4vp.config.OpenId4VpConfiguration;
+import org.pac4j.openid4vp.dcql.CredentialQuery;
 import org.pac4j.openid4vp.dcql.DcqlQuery;
 import org.pac4j.openid4vp.dcql.EudiPidQuery;
-import static org.pac4j.core.profile.definition.CommonProfileDefinition.FAMILY_NAME;
-import static org.pac4j.openid4vp.profile.EudiPidProfileDefinition.AGE_OVER_18;
-import static org.pac4j.openid4vp.profile.EudiPidProfileDefinition.GIVEN_NAME;
-import org.pac4j.openid4vp.config.OpenId4VpConfiguration;
-import org.pac4j.openid4vp.config.OpenId4VpDcApiConfiguration;
+import org.pac4j.openid4vp.transaction.VpTransaction;
+import org.pac4j.openid4vp.verifier.CredentialVerifier;
 import org.pac4j.openid4vp.verifier.SdJwtVcVerifier;
+import org.pac4j.openid4vp.verifier.VerifiedCredential;
 import org.pac4j.springframework.config.Pac4jSecurityConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 
-import java.util.List;
+import static org.pac4j.core.profile.definition.CommonProfileDefinition.FAMILY_NAME;
+import static org.pac4j.openid4vp.profile.EudiPidProfileDefinition.AGE_OVER_18;
+import static org.pac4j.openid4vp.profile.EudiPidProfileDefinition.GIVEN_NAME;
 
 @Configuration
 public class SecurityConfig extends Pac4jSecurityConfig {
@@ -30,30 +33,45 @@ public class SecurityConfig extends Pac4jSecurityConfig {
     /** The identifier under which the DID document of this verifier would expose its key. */
     private static final String KID = "pac4j-demo-key";
 
-    /** What this verifier asks for: three attributes of the person identification data, as a SD-JWT VC. */
-    private static final DcqlQuery DCQL_QUERY = EudiPidQuery.sdJwtVc(GIVEN_NAME, FAMILY_NAME, AGE_OVER_18);
+    /** What this verifier asks for: three attributes of the person identification data, as an mdoc. */
+    private static final DcqlQuery DCQL_QUERY = EudiPidQuery.mdoc(GIVEN_NAME, FAMILY_NAME, AGE_OVER_18);
 
-    @Value("${app.base-url:http://localhost:8080}")
+    private static final DcqlQuery FC_DCQL = new DcqlQuery()
+            .addCredential(new CredentialQuery("age_over_18", CredentialFormat.MSO_MDOC)
+                    .setDoctypeValue("eu.europa.ec.av.1")
+                    .addClaim("eu.europa.ec.av.1", AGE_OVER_18));
+
+    // ngrok http 8080
+    @Value("${app.base-url:https://nondeficient-untyped-austin.ngrok-free.dev}")
     private String baseUri;
 
     @Bean
     public Config config() {
-        // configuration of the authentication via a wallet, with OpenID4VP: this application is the verifier
-        final var configuration = new OpenId4VpConfiguration()
-            // a decentralized identifier signs its requests without needing a certificate, which keeps this
-            // demo runnable. A real EUDI verifier uses "x509_hash" and its relying party access
-            // certificate; the "redirect_uri" prefix cannot be used here since its requests cannot be signed
-            .setClientId(DID)
-            .setClientIdPrefix(ClientIdPrefix.DECENTRALIZED_IDENTIFIER)
-            .setDcqlQuery(DCQL_QUERY)
-            // the signing key is read from that JWKS, and created there on the first run: an ES256 key,
-            // as the profile mandates. A real EUDI verifier would point at a keystore instead, so that the
-            // key comes with the relying party access certificate its wallet requires
-            .setJwks(new JwksProperties().setJwksPath("./metadata/openid4vp.jwks").setKid(KID));
-        configuration.addCredentialVerifier(new SdJwtVcVerifier());
+        final var fcConfig = new OpenId4VpConfiguration()
+            .setClientId("nondeficient-untyped-austin.ngrok-free.dev")
+            .setClientIdPrefix(ClientIdPrefix.X509_SAN_DNS)
+            .setDcqlQuery(FC_DCQL)
+            .setKeystore(new KeystoreProperties()
+                    .setKeystorePath("./metadata/verifier.p12")
+                    .setKeyStoreType("PKCS12")
+                    .setKeyStoreAlias("rp")
+                    .setKeystorePassword("changeit")
+                    .setPrivateKeyPassword("changeit"));
+        fcConfig.addCredentialVerifier(new SdJwtVcVerifier());
+        final var mdocVerifier = new CredentialVerifier() {
+            @Override
+            public CredentialFormat getFormat() {
+                return CredentialFormat.MSO_MDOC;
+            }
+            @Override
+            public VerifiedCredential verify(String rawCredential, VpTransaction transaction, OpenId4VpConfiguration configuration) {
+                throw new TechnicalException("mdoc verification not implemented yet");
+            }
+        };
+        fcConfig.addCredentialVerifier(mdocVerifier);
 
         // the same verifier, reached through the digital credentials API of the browser instead of a URL
-        final var dcApiConfiguration = new OpenId4VpDcApiConfiguration();
+        /*final var dcApiConfiguration = new OpenId4VpDcApiConfiguration();
         dcApiConfiguration
             .setClientId(DID)
             .setClientIdPrefix(ClientIdPrefix.DECENTRALIZED_IDENTIFIER)
@@ -61,6 +79,7 @@ public class SecurityConfig extends Pac4jSecurityConfig {
             .setJwks(new JwksProperties().setJwksPath("./metadata/openid4vp.jwks").setKid(KID));
         dcApiConfiguration.setExpectedOrigins(List.of(baseUri));
         dcApiConfiguration.addCredentialVerifier(new SdJwtVcVerifier());
+        dcApiConfiguration.addCredentialVerifier(mdocVerifier);
 
         // the same verifier again, with a prefix that cannot sign: the request travels in the wallet URL, and
         // the client identifier is the response URI of each transaction, so there is none to type
@@ -68,11 +87,12 @@ public class SecurityConfig extends Pac4jSecurityConfig {
             .setClientIdPrefix(ClientIdPrefix.REDIRECT_URI)
             .setDcqlQuery(DCQL_QUERY);
         unsignedConfiguration.addCredentialVerifier(new SdJwtVcVerifier());
+        unsignedConfiguration.addCredentialVerifier(mdocVerifier);
         final var unsignedClient = new OpenId4VpClient(unsignedConfiguration);
-        unsignedClient.setName("OpenId4VpUnsignedClient");
+        unsignedClient.setName("OpenId4VpUnsignedClient");*/
 
         return new Config(baseUri + "/callback",
-            new OpenId4VpClient(configuration), new OpenId4VpDcApiClient(dcApiConfiguration), unsignedClient);
+            new OpenId4VpClient(fcConfig)); //, new OpenId4VpDcApiClient(dcApiConfiguration), unsignedClient);
     }
 
     @Override
@@ -80,8 +100,8 @@ public class SecurityConfig extends Pac4jSecurityConfig {
         // the /wallet/** URLs require a presentation from a wallet
         addSecurity(registry, "OpenId4VpClient").addPathPatterns("/wallet/**");
         // the /wallet-dcapi/** URLs require the same presentation, through the digital credentials API
-        addSecurity(registry, "OpenId4VpDcApiClient").addPathPatterns("/wallet-dcapi/**");
+        //addSecurity(registry, "OpenId4VpDcApiClient").addPathPatterns("/wallet-dcapi/**");
         // the /wallet-unsigned/** URLs require the same presentation, asked for without any signature
-        addSecurity(registry, "OpenId4VpUnsignedClient").addPathPatterns("/wallet-unsigned/**");
+        //addSecurity(registry, "OpenId4VpUnsignedClient").addPathPatterns("/wallet-unsigned/**");
     }
 }
