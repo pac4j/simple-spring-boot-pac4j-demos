@@ -30,6 +30,13 @@
             <artifactId>pac4j-openid4vp</artifactId>
             <version>6.6.0-SNAPSHOT</version>
         </dependency>
+        <!-- SD JWT VC -->
+        <dependency>
+            <groupId>eu.europa.ec.eudi</groupId>
+            <artifactId>eudi-lib-jvm-sdjwt-kt</artifactId>
+            <version>0.20.1</version>
+        </dependency>
+
         <!-- the wallet simulator, to play a presentation without a phone and without a certificate -->
         <dependency>
             <groupId>org.pac4j</groupId>

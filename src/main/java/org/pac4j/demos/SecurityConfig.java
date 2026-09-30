@@ -10,15 +10,22 @@ import org.pac4j.openid4vp.config.OpenId4VpConfiguration;
 import org.pac4j.openid4vp.dcql.CredentialQuery;
 import org.pac4j.openid4vp.dcql.DcqlQuery;
 import org.pac4j.openid4vp.dcql.EudiPidQuery;
-import org.pac4j.openid4vp.transaction.VpTransaction;
-import org.pac4j.openid4vp.verifier.CredentialVerifier;
 import org.pac4j.openid4vp.verifier.SdJwtVcVerifier;
-import org.pac4j.openid4vp.verifier.VerifiedCredential;
 import org.pac4j.springframework.config.Pac4jSecurityConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.CRLException;
+import java.security.cert.X509CRL;
+import java.util.List;
+import java.util.UUID;
 
 import static org.pac4j.core.profile.definition.CommonProfileDefinition.FAMILY_NAME;
 import static org.pac4j.openid4vp.profile.EudiPidProfileDefinition.AGE_OVER_18;
@@ -41,6 +48,45 @@ public class SecurityConfig extends Pac4jSecurityConfig {
                     .setDoctypeValue("eu.europa.ec.av.1")
                     .addClaim("eu.europa.ec.av.1", AGE_OVER_18));
 
+    private static final String ANIMO_DCQL = "{\n" +
+            "  \"credentials\": [\n" +
+            "    {\n" +
+            "      \"id\": \"0\",\n" +
+            "      \"format\": \"dc+sd-jwt\",\n" +
+            "      \"meta\": {\n" +
+            "        \"vct_values\": [\n" +
+            "          \"urn:eudi:pid:1\",\n" +
+            "          \"https://demo.pid-issuer.bundesdruckerei.de/credentials/pid/1.0\"\n" +
+            "        ]\n" +
+            "      },\n" +
+            "      \"claims\": [\n" +
+            "        {\n" +
+            "          \"path\": [\n" +
+            "            \"family_name\"\n" +
+            "          ],\n" +
+            "          \"id\": \"family_name\"\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"path\": [\n" +
+            "            \"given_name\"\n" +
+            "          ],\n" +
+            "          \"id\": \"given_name\"\n" +
+            "        }\n" +
+            "      ]\n" +
+            "    }\n" +
+            "  ],\n" +
+            "  \"credential_sets\": [\n" +
+            "    {\n" +
+            "      \"options\": [\n" +
+            "        [\n" +
+            "          \"0\"\n" +
+            "        ]\n" +
+            "      ],\n" +
+            "      \"purpose\": \"Please share your EUDI PID\"\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}";
+
     // ngrok http 8080
     @Value("${app.base-url:https://nondeficient-untyped-austin.ngrok-free.dev}")
     private String baseUri;
@@ -48,17 +94,30 @@ public class SecurityConfig extends Pac4jSecurityConfig {
     @Bean
     public Config config() {
         final var fcConfig = new OpenId4VpConfiguration()
-            .setClientId("nondeficient-untyped-austin.ngrok-free.dev")
-            .setClientIdPrefix(ClientIdPrefix.X509_SAN_DNS)
-            .setDcqlQuery(FC_DCQL)
+            .setClientId("3jLUkxFqNN3_h2OUSoMqfbZpsg99YwjMPKVeu2PDhoc")
+            .setClientIdPrefix(ClientIdPrefix.X509_HASH)
+            .setDcqlQuery(ANIMO_DCQL)
             .setKeystore(new KeystoreProperties()
                     .setKeystorePath("./metadata/verifier.p12")
                     .setKeyStoreType("PKCS12")
                     .setKeyStoreAlias("rp")
                     .setKeystorePassword("changeit")
                     .setPrivateKeyPassword("changeit"));
-        fcConfig.addCredentialVerifier(new SdJwtVcVerifier());
-        final var mdocVerifier = new CredentialVerifier() {
+        final var sdJwtVcVerifier = new SdJwtVcVerifier();
+        sdJwtVcVerifier.setTrustStore(new KeystoreProperties()
+                .setKeystorePath("./metadata/animo-sdjwtvc.p12")
+                .setKeyStoreType("PKCS12")
+                .setKeystorePassword("changeit"));
+        try (final var input = Files.newInputStream(Path.of("./metadata/animo-sdjwtvc.crl"))) {
+            final var crl = (X509CRL) CertificateFactory.getInstance("X.509").generateCRL(input);
+            sdJwtVcVerifier.setCertificateRevocationLists(List.of(crl));
+        } catch (final IOException | CertificateException | CRLException e) {
+            throw new TechnicalException("Unable to load the Animo certificate revocation list", e);
+        }
+        fcConfig.addCredentialVerifier(sdJwtVcVerifier);
+        // the PID carries no stable identifier: this demo gives a new one at each authentication
+        fcConfig.setProfileIdResolver(credentials -> UUID.randomUUID().toString());
+        /*final var mdocVerifier = new CredentialVerifier() {
             @Override
             public CredentialFormat getFormat() {
                 return CredentialFormat.MSO_MDOC;
@@ -68,7 +127,7 @@ public class SecurityConfig extends Pac4jSecurityConfig {
                 throw new TechnicalException("mdoc verification not implemented yet");
             }
         };
-        fcConfig.addCredentialVerifier(mdocVerifier);
+        fcConfig.addCredentialVerifier(mdocVerifier);*/
 
         // the same verifier, reached through the digital credentials API of the browser instead of a URL
         /*final var dcApiConfiguration = new OpenId4VpDcApiConfiguration();
@@ -91,8 +150,8 @@ public class SecurityConfig extends Pac4jSecurityConfig {
         final var unsignedClient = new OpenId4VpClient(unsignedConfiguration);
         unsignedClient.setName("OpenId4VpUnsignedClient");*/
 
-        return new Config(baseUri + "/callback",
-            new OpenId4VpClient(fcConfig)); //, new OpenId4VpDcApiClient(dcApiConfiguration), unsignedClient);
+        final var client = new OpenId4VpClient(fcConfig);
+        return new Config(baseUri + "/callback", client); //, new OpenId4VpDcApiClient(dcApiConfiguration), unsignedClient);
     }
 
     @Override

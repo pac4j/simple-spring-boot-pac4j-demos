@@ -1,8 +1,8 @@
 package org.pac4j.demos;
 
-import java.time.Instant;
 import java.util.stream.Collectors;
 import org.pac4j.core.config.Config;
+import org.pac4j.core.context.CallContext;
 import org.pac4j.core.context.WebContext;
 import org.pac4j.core.context.session.SessionStore;
 import org.pac4j.openid4vp.client.OpenId4VpClient;
@@ -25,9 +25,8 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-
-import static org.pac4j.openid4vp.util.OpenId4VpConstants.SESSION_TRANSACTION_ID;
 
 @Controller
 public class Application {
@@ -44,22 +43,14 @@ public class Application {
     @Autowired
     private SessionStore sessionStore;
 
-    /** Read only the current browser session's transaction; the callback consumes it. */
+    /** Whether the wallet answered the current browser session's transaction: pending, received or expired. */
     @GetMapping("/vp/status")
     @ResponseBody
     public ResponseEntity<Map<String, String>> vpStatus() {
-        final var transactionId = sessionStore.get(webContext, SESSION_TRANSACTION_ID)
-            .map(Object::toString).orElse(null);
-        String status = "expired";
-        if (transactionId != null) {
-            final var client = (OpenId4VpClient) config.getClients().findClient("OpenId4VpClient").orElseThrow();
-            final var transaction = client.getConfiguration().getTransactionStore().get(transactionId).orElse(null);
-            if (transaction != null && transaction.getExpiresAt() != null
-                && Instant.now().isBefore(transaction.getExpiresAt())) {
-                status = transaction.isAnswered() ? "received" : "pending";
-            }
-        }
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of("status", status));
+        final var client = (OpenId4VpClient) config.getClients().findClient("OpenId4VpClient").orElseThrow();
+        final var status = client.getPresentationStatus(new CallContext(webContext, sessionStore));
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+            .body(Map.of("status", status.name().toLowerCase(Locale.ROOT)));
     }
 
     @RequestMapping("/")

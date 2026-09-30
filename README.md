@@ -5,3 +5,5 @@
 This `simple-spring-boot-pac4j-demos` project is a set of simple Spring Boot demos secured by the [spring-webmvc-pac4j](https://github.com/pac4j/spring-webmvc-pac4j) security library for the OIDC, CAS and SAML2 protocols: **switch branch** for use cases!
 
 https://api.playground.france-identite.gouv.fr/france-titres/stelau-playground/vp/proof-of-age
+
+https://playground.animo.id/
