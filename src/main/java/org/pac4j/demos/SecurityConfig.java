@@ -2,6 +2,7 @@ package org.pac4j.demos;
 
 import org.pac4j.core.config.Config;
 import org.pac4j.core.config.properties.KeystoreProperties;
+import org.pac4j.core.config.properties.ResourceProperties;
 import org.pac4j.core.exception.TechnicalException;
 import org.pac4j.openid4vp.client.OpenId4VpClient;
 import org.pac4j.openid4vp.config.ClientIdPrefix;
@@ -11,19 +12,13 @@ import org.pac4j.openid4vp.dcql.CredentialQuery;
 import org.pac4j.openid4vp.dcql.DcqlQuery;
 import org.pac4j.openid4vp.dcql.EudiPidQuery;
 import org.pac4j.openid4vp.verifier.SdJwtVcVerifier;
+import org.pac4j.openid4vp.verifier.trust.CertificateTrustedIssuer;
 import org.pac4j.springframework.config.Pac4jSecurityConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.CRLException;
-import java.security.cert.X509CRL;
 import java.util.List;
 import java.util.UUID;
 
@@ -98,23 +93,17 @@ public class SecurityConfig extends Pac4jSecurityConfig {
             .setClientIdPrefix(ClientIdPrefix.X509_HASH)
             .setDcqlQuery(ANIMO_DCQL)
             .setKeystore(new KeystoreProperties()
-                    .setKeystorePath("./metadata/verifier.p12")
+                    .setResourcePath("./metadata/verifier.p12")
                     .setKeyStoreType("PKCS12")
                     .setKeyStoreAlias("rp")
                     .setKeystorePassword("changeit")
                     .setPrivateKeyPassword("changeit"));
-        final var sdJwtVcVerifier = new SdJwtVcVerifier();
-        sdJwtVcVerifier.setTrustStore(new KeystoreProperties()
-                .setKeystorePath("./metadata/animo-sdjwtvc.p12")
+        final var animoIssuers = new CertificateTrustedIssuer(new KeystoreProperties()
+                .setResourcePath("./metadata/animo-sdjwtvc.p12")
                 .setKeyStoreType("PKCS12")
-                .setKeystorePassword("changeit"));
-        try (final var input = Files.newInputStream(Path.of("./metadata/animo-sdjwtvc.crl"))) {
-            final var crl = (X509CRL) CertificateFactory.getInstance("X.509").generateCRL(input);
-            sdJwtVcVerifier.setCertificateRevocationLists(List.of(crl));
-        } catch (final IOException | CertificateException | CRLException e) {
-            throw new TechnicalException("Unable to load the Animo certificate revocation list", e);
-        }
-        fcConfig.addCredentialVerifier(sdJwtVcVerifier);
+                .setKeystorePassword("changeit"))
+            .setCertificateRevocationLists(List.of(new ResourceProperties("./metadata/animo-sdjwtvc.crl")));
+        fcConfig.addCredentialVerifier(new SdJwtVcVerifier().addTrustedIssuer(animoIssuers));
         // the PID carries no stable identifier: this demo gives a new one at each authentication
         fcConfig.setProfileIdResolver(credentials -> UUID.randomUUID().toString());
         /*final var mdocVerifier = new CredentialVerifier() {
@@ -135,7 +124,7 @@ public class SecurityConfig extends Pac4jSecurityConfig {
             .setClientId(DID)
             .setClientIdPrefix(ClientIdPrefix.DECENTRALIZED_IDENTIFIER)
             .setDcqlQuery(DCQL_QUERY)
-            .setJwks(new JwksProperties().setJwksPath("./metadata/openid4vp.jwks").setKid(KID));
+            .setJwks(new JwksProperties().setResourcePath("./metadata/openid4vp.jwks").setKid(KID));
         dcApiConfiguration.setExpectedOrigins(List.of(baseUri));
         dcApiConfiguration.addCredentialVerifier(new SdJwtVcVerifier());
         dcApiConfiguration.addCredentialVerifier(mdocVerifier);
