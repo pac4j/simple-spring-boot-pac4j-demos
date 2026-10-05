@@ -3,7 +3,7 @@ package org.pac4j.demos;
 import org.pac4j.core.config.Config;
 import org.pac4j.core.config.properties.KeystoreProperties;
 import org.pac4j.core.config.properties.ResourceProperties;
-import org.pac4j.core.exception.TechnicalException;
+import org.pac4j.core.http.callback.PathParameterCallbackUrlResolver;
 import org.pac4j.openid4vp.client.OpenId4VpClient;
 import org.pac4j.openid4vp.config.ClientIdPrefix;
 import org.pac4j.openid4vp.config.CredentialFormat;
@@ -11,6 +11,7 @@ import org.pac4j.openid4vp.config.OpenId4VpConfiguration;
 import org.pac4j.openid4vp.dcql.CredentialQuery;
 import org.pac4j.openid4vp.dcql.DcqlQuery;
 import org.pac4j.openid4vp.dcql.EudiPidQuery;
+import org.pac4j.openid4vp.verifier.MdocVerifier;
 import org.pac4j.openid4vp.verifier.SdJwtVcVerifier;
 import org.pac4j.openid4vp.verifier.trust.CertificateTrustedIssuer;
 import org.pac4j.springframework.config.Pac4jSecurityConfig;
@@ -29,6 +30,10 @@ import static org.pac4j.openid4vp.profile.EudiPidProfileDefinition.GIVEN_NAME;
 @Configuration
 public class SecurityConfig extends Pac4jSecurityConfig {
 
+    private static final boolean sdjwtvcQuery = false;
+    private static final boolean sdjwtvcEnabled = sdjwtvcQuery;
+    private static final boolean mdocEnabled = !sdjwtvcQuery;
+
     /** Not resolvable: no wallet will look it up, and this demo has no DID document to serve. */
     private static final String DID = "did:example:pac4j-demo";
 
@@ -43,7 +48,8 @@ public class SecurityConfig extends Pac4jSecurityConfig {
                     .setDoctypeValue("eu.europa.ec.av.1")
                     .addClaim("eu.europa.ec.av.1", AGE_OVER_18));
 
-    private static final String ANIMO_DCQL = "{\n" +
+    // sd jwt vc
+    private static final String EUDI_PID_ANIMO_DCQL = "{\n" +
             "  \"credentials\": [\n" +
             "    {\n" +
             "      \"id\": \"0\",\n" +
@@ -82,41 +88,78 @@ public class SecurityConfig extends Pac4jSecurityConfig {
             "  ]\n" +
             "}";
 
+    // mdoc
+    private static final String DRIVING_LICENSE_ANIMO_DCQL = "{\n" +
+            "  \"credentials\": [\n" +
+            "    {\n" +
+            "      \"id\": \"0\",\n" +
+            "      \"format\": \"mso_mdoc\",\n" +
+            "      \"meta\": {\n" +
+            "        \"doctype_value\": \"org.iso.18013.5.1.mDL\"\n" +
+            "      },\n" +
+            "      \"claims\": [\n" +
+            "        {\n" +
+            "          \"id\": \"family_name\",\n" +
+            "          \"path\": [\n" +
+            "            \"org.iso.18013.5.1\",\n" +
+            "            \"family_name\"\n" +
+            "          ],\n" +
+            "          \"intent_to_retain\": false\n" +
+            "        },\n" +
+            "        {\n" +
+            "          \"id\": \"given_name\",\n" +
+            "          \"path\": [\n" +
+            "            \"org.iso.18013.5.1\",\n" +
+            "            \"given_name\"\n" +
+            "          ],\n" +
+            "          \"intent_to_retain\": false\n" +
+            "        }\n" +
+            "      ]\n" +
+            "    }\n" +
+            "  ],\n" +
+            "  \"credential_sets\": [\n" +
+            "    {\n" +
+            "      \"options\": [\n" +
+            "        [\n" +
+            "          \"0\"\n" +
+            "        ]\n" +
+            "      ],\n" +
+            "      \"purpose\": \"Please share your Driving Licence\"\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}";
+
     // ngrok http 8080
     @Value("${app.base-url:https://nondeficient-untyped-austin.ngrok-free.dev}")
     private String baseUri;
 
     @Bean
     public Config config() {
-        final var fcConfig = new OpenId4VpConfiguration()
+        final var vpConfig = new OpenId4VpConfiguration()
             .setClientId("3jLUkxFqNN3_h2OUSoMqfbZpsg99YwjMPKVeu2PDhoc")
             .setClientIdPrefix(ClientIdPrefix.X509_HASH)
-            .setDcqlQuery(ANIMO_DCQL)
-            .setKeystore(new KeystoreProperties()
-                    .setResourcePath("./metadata/verifier.p12")
+            .setKeystore(new KeystoreProperties("./metadata/verifier.p12")
                     .setKeyStoreType("PKCS12")
                     .setKeyStoreAlias("rp")
                     .setKeystorePassword("changeit")
                     .setPrivateKeyPassword("changeit"));
-        final var animoIssuers = new CertificateTrustedIssuer(new KeystoreProperties()
-                .setResourcePath("./metadata/animo-sdjwtvc.p12")
+        final var animoIssuers = new CertificateTrustedIssuer(new KeystoreProperties("./metadata/animo-sdjwtvc.p12")
                 .setKeyStoreType("PKCS12")
                 .setKeystorePassword("changeit"))
             .setCertificateRevocationLists(List.of(new ResourceProperties("./metadata/animo-sdjwtvc.crl")));
-        fcConfig.addCredentialVerifier(new SdJwtVcVerifier().addTrustedIssuer(animoIssuers));
+        if (mdocEnabled) {
+            vpConfig.addCredentialVerifier(new MdocVerifier().addTrustedIssuer(animoIssuers));
+        }
+        if (sdjwtvcEnabled) {
+            vpConfig.addCredentialVerifier(new SdJwtVcVerifier().addTrustedIssuer(animoIssuers));
+        }
+        if (sdjwtvcQuery) {
+            vpConfig.setDcqlQuery(EUDI_PID_ANIMO_DCQL);
+        } else {
+            vpConfig.setDcqlQuery(DRIVING_LICENSE_ANIMO_DCQL);
+        }
         // the PID carries no stable identifier: this demo gives a new one at each authentication
-        fcConfig.setProfileIdResolver(credentials -> UUID.randomUUID().toString());
-        /*final var mdocVerifier = new CredentialVerifier() {
-            @Override
-            public CredentialFormat getFormat() {
-                return CredentialFormat.MSO_MDOC;
-            }
-            @Override
-            public VerifiedCredential verify(String rawCredential, VpTransaction transaction, OpenId4VpConfiguration configuration) {
-                throw new TechnicalException("mdoc verification not implemented yet");
-            }
-        };
-        fcConfig.addCredentialVerifier(mdocVerifier);*/
+        vpConfig.setProfileIdResolver(credentials -> UUID.randomUUID().toString());
 
         // the same verifier, reached through the digital credentials API of the browser instead of a URL
         /*final var dcApiConfiguration = new OpenId4VpDcApiConfiguration();
@@ -124,7 +167,7 @@ public class SecurityConfig extends Pac4jSecurityConfig {
             .setClientId(DID)
             .setClientIdPrefix(ClientIdPrefix.DECENTRALIZED_IDENTIFIER)
             .setDcqlQuery(DCQL_QUERY)
-            .setJwks(new JwksProperties().setResourcePath("./metadata/openid4vp.jwks").setKid(KID));
+            .setJwks(new JwksProperties("./metadata/openid4vp.jwks").setKid(KID));
         dcApiConfiguration.setExpectedOrigins(List.of(baseUri));
         dcApiConfiguration.addCredentialVerifier(new SdJwtVcVerifier());
         dcApiConfiguration.addCredentialVerifier(mdocVerifier);
@@ -139,7 +182,10 @@ public class SecurityConfig extends Pac4jSecurityConfig {
         final var unsignedClient = new OpenId4VpClient(unsignedConfiguration);
         unsignedClient.setName("OpenId4VpUnsignedClient");*/
 
-        final var client = new OpenId4VpClient(fcConfig);
+        final var client = new OpenId4VpClient(vpConfig);
+        // the client name in the path rather than as a query parameter: the request_uri then carries no '&', which some
+        // wallets cut when they decode the whole openid4vp:// URL before reading its parameters (same device only)
+        client.setCallbackUrlResolver(new PathParameterCallbackUrlResolver());
         return new Config(baseUri + "/callback", client); //, new OpenId4VpDcApiClient(dcApiConfiguration), unsignedClient);
     }
 

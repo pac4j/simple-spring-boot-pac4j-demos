@@ -250,7 +250,7 @@ public class Application {
                 stopPolling();
                 document.getElementById('back').disabled = true;
                 document.getElementById('ask').disabled = true;
-                window.location = '/callback?client_name=%s';
+                window.location = '/callback/%s';
               }
               window.addEventListener('pagehide', stopPolling);
             </script>
