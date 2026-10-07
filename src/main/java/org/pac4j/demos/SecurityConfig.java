@@ -30,7 +30,7 @@ import static org.pac4j.openid4vp.profile.EudiPidProfileDefinition.GIVEN_NAME;
 @Configuration
 public class SecurityConfig extends Pac4jSecurityConfig {
 
-    private static final boolean sdjwtvcQuery = false;
+    private static final boolean sdjwtvcQuery = true;
     private static final boolean sdjwtvcEnabled = sdjwtvcQuery;
     private static final boolean mdocEnabled = !sdjwtvcQuery;
 
@@ -143,6 +143,9 @@ public class SecurityConfig extends Pac4jSecurityConfig {
                     .setKeyStoreAlias("rp")
                     .setKeystorePassword("changeit")
                     .setPrivateKeyPassword("changeit"));
+
+        //vpConfig.setTransactionLifetimeSeconds(30);
+
         final var animoIssuers = new CertificateTrustedIssuer(new KeystoreProperties("./metadata/animo-sdjwtvc.p12")
                 .setKeyStoreType("PKCS12")
                 .setKeystorePassword("changeit"))
@@ -155,11 +158,37 @@ public class SecurityConfig extends Pac4jSecurityConfig {
         }
         if (sdjwtvcQuery) {
             vpConfig.setDcqlQuery(EUDI_PID_ANIMO_DCQL);
+            // E2, test temporaire : un type de credential que Paradym n'a pas
+            //vpConfig.setDcqlQuery(new DcqlQuery().addCredential(new CredentialQuery("absent", CredentialFormat.SD_JWT_VC).setVctValues("urn:example:absent").addClaim("given_name")));
         } else {
             vpConfig.setDcqlQuery(DRIVING_LICENSE_ANIMO_DCQL);
         }
         // the PID carries no stable identifier: this demo gives a new one at each authentication
         vpConfig.setProfileIdResolver(credentials -> UUID.randomUUID().toString());
+
+        /*vpConfig.addCredentialVerifier(new SdJwtVcVerifier().addTrustedIssuer(animoIssuers));
+        vpConfig.addCredentialVerifier(new MdocVerifier().addTrustedIssuer(animoIssuers));
+        vpConfig.setDcqlQuery(new DcqlQuery()
+                .addCredential(EudiPidQuery.sdJwtVcCredential(GIVEN_NAME, FAMILY_NAME).setId("pid"))
+                .addCredential(new CredentialQuery("mdl", CredentialFormat.MSO_MDOC)
+                        .setDoctypeValue("org.iso.18013.5.1.mDL")
+                        .addClaim("org.iso.18013.5.1", "family_name")
+                        .addClaim("org.iso.18013.5.1", "given_name"))
+                .addCredentialSet(new CredentialSetQuery().addOption("mdl").addOption("pid")));*/
+        // Q5 : identifiant stable, à la place du UUID
+        //vpConfig.setDcqlQuery(EudiPidQuery.sdJwtVc(GIVEN_NAME, FAMILY_NAME, PERSONAL_ADMINISTRATIVE_NUMBER));
+        //vpConfig.setProfileIdResolver(ProfileIdResolver.issuerAndClaim(PERSONAL_ADMINISTRATIVE_NUMBER));
+        // Q4, étape 1 : objets imbriqués entiers
+        /*vpConfig.setDcqlQuery(new DcqlQuery().addCredential(new CredentialQuery("pid", CredentialFormat.SD_JWT_VC)
+                .setVctValues(PID_VCT)
+                .addClaim(GIVEN_NAME)
+                .addClaim("address")
+                .addClaim("place_of_birth")));*/
+        // Q4, étape 2 : un seul sous-claim d'un objet imbriqué
+        /*vpConfig.setDcqlQuery(new DcqlQuery().addCredential(new CredentialQuery("pid", CredentialFormat.SD_JWT_VC)
+                .setVctValues(PID_VCT)
+                .addClaim(GIVEN_NAME)
+                .addClaim("address", "locality")));*/
 
         // the same verifier, reached through the digital credentials API of the browser instead of a URL
         /*final var dcApiConfiguration = new OpenId4VpDcApiConfiguration();
@@ -186,6 +215,13 @@ public class SecurityConfig extends Pac4jSecurityConfig {
         // the client name in the path rather than as a query parameter: the request_uri then carries no '&', which some
         // wallets cut when they decode the whole openid4vp:// URL before reading its parameters (same device only)
         client.setCallbackUrlResolver(new PathParameterCallbackUrlResolver());
+        /* to force A256GCM for tests onlu
+        client.setRequestObjectBuilder(new OpenId4VpRequestObjectBuilder(client) {
+            @Override
+            protected List<String> computeEncValues(final Map<String, Object> walletMetadata, final VpTransaction transaction) {
+                return List.of("A256GCM");
+            }
+        });*/
         return new Config(baseUri + "/callback", client); //, new OpenId4VpDcApiClient(dcApiConfiguration), unsignedClient);
     }
 
