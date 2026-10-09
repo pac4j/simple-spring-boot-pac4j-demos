@@ -2,7 +2,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.pac4j.demo</groupId>
     <artifactId>simple-spring-boot-pac4j-demos</artifactId>
-    <version>8.0.3-SNAPSHOT</version>
+    <version>8.0.4-SNAPSHOT</version>
     <packaging>jar</packaging>
     <name>Simple Spring Boot demos with CAS, OIDC and SAML using spring-webmvc-pac4j</name>
 
@@ -11,6 +11,21 @@
         <artifactId>spring-boot-starter-parent</artifactId>
         <version>4.0.4</version>
     </parent>
+
+    <!-- for the spring-webmvc-pac4j snapshot -->
+    <repositories>
+        <repository>
+            <name>Central Portal Snapshots</name>
+            <id>central-portal-snapshots</id>
+            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
     <dependencies>
         <!-- Spring Boot web -->
@@ -22,13 +37,13 @@
         <dependency>
             <groupId>org.pac4j</groupId>
             <artifactId>spring-webmvc-pac4j</artifactId>
-            <version>8.0.3</version>
+            <version>8.0.4-SNAPSHOT</version>
         </dependency>
         <!-- pac4j support for OpenID Connect -->
         <dependency>
             <groupId>org.pac4j</groupId>
             <artifactId>pac4j-oidc</artifactId>
-            <version>6.5.8</version>
+            <version>6.5.9</version>
         </dependency>
     </dependencies>
     <build>
